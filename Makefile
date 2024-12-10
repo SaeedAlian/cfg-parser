@@ -1,8 +1,8 @@
 build:
-	@g++ -o main.out src/main.c
+	@g++ -o main.out src/main.c src/production_table.c
 
 debug:
-	@g++ -g -o main.out src/main.c && gdb ./main.out
+	@g++ -g -o main.out src/main.c src/production_table.c && gdb ./main.out
 
 build-run: build
 	@./main.out
