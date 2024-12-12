@@ -308,3 +308,52 @@ int production_rhs_stack_pop(production_rhs_stack *s, production_rhs **rhs) {
   s->top--;
   return 0;
 }
+
+char_stack *new_char_stack(int max) {
+  char_stack *s = (char_stack *)malloc(sizeof(char_stack));
+  s->data = (char **)malloc(sizeof(char *) * max);
+  s->top = -1;
+  s->max = max;
+
+  if (s->data == NULL) {
+    if (s != NULL)
+      free(s);
+
+    return NULL;
+  }
+
+  return s;
+}
+
+void free_char_stack(char_stack *s) {
+  free(s->data);
+  free(s);
+}
+
+int char_stack_is_full(char_stack *s) { return s->top == s->max - 1; }
+int char_stack_is_empty(char_stack *s) { return s->top == -1; }
+
+char *char_stack_top(char_stack *s) { return s->data[s->top]; }
+
+int char_stack_push(char_stack *s, char *state) {
+  int new_top = ++s->top;
+
+  if (new_top > s->max - 1)
+    return -1;
+
+  s->data[new_top] = state;
+
+  return 0;
+}
+
+int char_stack_pop(char_stack *s, char **state) {
+  if (s->top < 0)
+    return -1;
+
+  if (state != NULL) {
+    (*state) = s->data[s->top];
+  }
+
+  s->top--;
+  return 0;
+}

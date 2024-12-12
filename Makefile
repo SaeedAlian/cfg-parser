@@ -1,8 +1,8 @@
 build:
-	@g++ -o main.out src/main.c src/grammar.c
+	@g++ -o main.out src/main.c src/grammar.c src/ll1.c
 
 debug:
-	@g++ -g -o main.out src/main.c src/grammar.c && gdb ./main.out
+	@g++ -g -o main.out src/main.c src/grammar.c src/ll1.c && gdb ./main.out
 
 build-run: build
 	@./main.out

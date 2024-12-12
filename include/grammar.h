@@ -56,8 +56,15 @@ typedef struct grammar {
   production_table *productions_table;
 } grammar;
 
+typedef struct char_stack {
+  int top;
+  int max;
+  char **data;
+} char_stack;
+
 void free_grammar(grammar *g);
 void free_production_rhs_stack(production_rhs_stack *s);
+void free_char_stack(char_stack *s);
 void free_production_rhs(production_rhs *rhs);
 void free_production_table(production_table *t);
 
@@ -67,6 +74,13 @@ int production_rhs_stack_is_empty(production_rhs_stack *s);
 production_rhs *production_rhs_stack_top(production_rhs_stack *s);
 int production_rhs_stack_push(production_rhs_stack *s, production_rhs *rhs);
 int production_rhs_stack_pop(production_rhs_stack *s, production_rhs **rhs);
+
+char_stack *new_char_stack(int max);
+int char_stack_is_full(char_stack *s);
+int char_stack_is_empty(char_stack *s);
+char *char_stack_top(char_stack *s);
+int char_stack_push(char_stack *s, char *state);
+int char_stack_pop(char_stack *s, char **state);
 
 grammar *new_grammar(const char *vars, const char *terminals, char start_var);
 int add_production(grammar *g, char var, const char *rhs);
