@@ -1,36 +1,19 @@
-#include "../include/ll1.h"
-#include "../include/production_table.h"
-#include <stdio.h>
+#include "../include/grammar.h"
 
 int main() {
-  prod_table *t = new_prod_table();
-  add_new_prod(t, 'S', "AB");
-  add_new_prod(t, 'A', "CD");
-  add_new_prod(t, 'B', "+AB");
-  add_new_prod(t, 'B', "epsilon");
-  add_new_prod(t, 'C', "i");
-  add_new_prod(t, 'C', "(S)");
-  add_new_prod(t, 'D', "*CD");
-  add_new_prod(t, 'D', "epsilon");
+  grammar *g = new_grammar("SABCD", "+*i", 'S');
+  add_production(g, 'S', "AB");
+  add_production(g, 'A', "CD");
+  add_production(g, 'B', "+AB");
+  add_production(g, 'B', "epsilon");
+  add_production(g, 'C', "i");
+  add_production(g, 'C', "(S)");
+  add_production(g, 'D', "*CD");
+  add_production(g, 'D', "epsilon");
 
-  printf("%c\n", get_prod(t, 'A').var);
-  printf("%s\n", get_prod(t, 'A').first_rhs->rhs);
+  print_grammar(g);
 
-  printf("%c\n", get_prod(t, 'B').var);
-  printf("%s\n", get_prod(t, 'B').first_rhs->rhs);
-
-  printf("%i\n", has_epsilon_rhs(t, 'A'));
-  printf("%i\n", has_epsilon_rhs(t, 'B'));
-
-  int i;
-  char *f = first(t, 'D', &i);
-
-  for (int j = 0; j < i; j++) {
-    printf("F %i -> %c\n", j, f[j]);
-  }
-
-  free(f);
-  free_prod_table(t);
+  free_grammar(g);
 
   return 0;
 }
