@@ -53,6 +53,15 @@ grammar *new_grammar(const char *vars, const char *terminals, char start_var) {
     return NULL;
   }
 
+  if (strchr(vars, start_var) == NULL) {
+    free(new->productions_table->productions);
+    free(new->productions_table);
+    free(new->terminals);
+    free(new->vars);
+    free(new);
+    return NULL;
+  }
+
   new->start_var = start_var;
 
   return new;
