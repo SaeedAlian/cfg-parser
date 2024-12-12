@@ -1,6 +1,7 @@
 #ifndef _H_GRAMMAR
 #define _H_GRAMMAR
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -71,5 +72,8 @@ grammar *new_grammar(const char *vars, const char *terminals, char start_var);
 int add_production(grammar *g, char var, const char *rhs);
 int get_production(grammar *g, char var, production *prod);
 int var_has_epsilon_rhs(grammar *g, char var);
+
+void print_production(production p, int space_indent);
+void print_grammar(grammar *g);
 
 #endif
