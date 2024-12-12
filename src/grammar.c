@@ -241,10 +241,10 @@ void free_production_table(production_table *t) {
   free(t);
 }
 
-void free_prod_rhs(production_rhs *rhs) {
+void free_production_rhs(production_rhs *rhs) {
   if (rhs == NULL)
     return;
-  free_prod_rhs(rhs->next);
+  free_production_rhs(rhs->next);
   free(rhs->rhs);
   free(rhs);
 }
