@@ -47,16 +47,18 @@ typedef struct production_rhs_stack {
 } production_rhs_stack;
 
 typedef struct grammar {
+  int vars_len;
   char *vars;
+  int terminals_len;
   char *terminals;
   char start_var;
   production_table *productions_table;
 } grammar;
 
+void free_grammar(grammar *g);
 void free_production_rhs_stack(production_rhs_stack *s);
 void free_production_rhs(production_rhs *rhs);
 void free_production_table(production_table *t);
-void free_grammar(grammar *g);
 
 production_rhs_stack *new_production_rhs_stack(int max);
 int production_rhs_stack_is_full(production_rhs_stack *s);

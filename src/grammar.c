@@ -1,21 +1,24 @@
 #include "../include/grammar.h"
 
 grammar *new_grammar(const char *vars, const char *terminals, char start_var) {
-  grammar *new = (grammar *)malloc(sizeof(grammar));
-  if (new == NULL)
+  if (terminals == NULL || vars == NULL)
     return NULL;
 
-  new->productions_table = (production_table *)malloc(sizeof(production_table));
-  if (new->productions_table == NULL) {
-    free(new);
+  grammar *g = (grammar *)malloc(sizeof(grammar));
+  if (g == NULL)
+    return NULL;
+
+  g->productions_table = (production_table *)malloc(sizeof(production_table));
+  if (g->productions_table == NULL) {
+    free(g);
     return NULL;
   }
 
-  new->productions_table->productions =
+  g->productions_table->productions =
       (production *)malloc(sizeof(production) * MAX_PRODS);
-  if (new->productions_table->productions == NULL) {
-    free(new->productions_table);
-    free(new);
+  if (g->productions_table->productions == NULL) {
+    free(g->productions_table);
+    free(g);
     return NULL;
   }
 
@@ -23,48 +26,51 @@ grammar *new_grammar(const char *vars, const char *terminals, char start_var) {
     production n;
     n.var = i + PRODS_INDEX_SHIFT;
     n.first_rhs = NULL;
-    new->productions_table->productions[i] = n;
+    g->productions_table->productions[i] = n;
   }
 
-  new->terminals = (char *)malloc(sizeof(char) * strlen(terminals) + 1);
-  if (new->terminals == NULL) {
-    free(new->productions_table->productions);
-    free(new->productions_table);
-    free(new);
+  g->terminals_len = strlen(terminals);
+  g->vars_len = strlen(vars);
+
+  g->terminals = (char *)malloc(sizeof(char) * g->terminals_len + 1);
+  if (g->terminals == NULL) {
+    free(g->productions_table->productions);
+    free(g->productions_table);
+    free(g);
     return NULL;
   }
 
-  new->vars = (char *)malloc(sizeof(char) * strlen(vars) + 1);
-  if (new->vars == NULL) {
-    free(new->productions_table->productions);
-    free(new->productions_table);
-    free(new->terminals);
-    free(new);
+  g->vars = (char *)malloc(sizeof(char) * g->vars_len + 1);
+  if (g->vars == NULL) {
+    free(g->productions_table->productions);
+    free(g->productions_table);
+    free(g->terminals);
+    free(g);
     return NULL;
   }
 
-  if (strcpy(new->vars, vars) == NULL ||
-      strcpy(new->terminals, terminals) == NULL) {
-    free(new->productions_table->productions);
-    free(new->productions_table);
-    free(new->terminals);
-    free(new->vars);
-    free(new);
+  if (strcpy(g->vars, vars) == NULL ||
+      strcpy(g->terminals, terminals) == NULL) {
+    free(g->productions_table->productions);
+    free(g->productions_table);
+    free(g->terminals);
+    free(g->vars);
+    free(g);
     return NULL;
   }
 
   if (strchr(vars, start_var) == NULL) {
-    free(new->productions_table->productions);
-    free(new->productions_table);
-    free(new->terminals);
-    free(new->vars);
-    free(new);
+    free(g->productions_table->productions);
+    free(g->productions_table);
+    free(g->terminals);
+    free(g->vars);
+    free(g);
     return NULL;
   }
 
-  new->start_var = start_var;
+  g->start_var = start_var;
 
-  return new;
+  return g;
 }
 
 int add_production(grammar *g, char var, const char *rhs) {
