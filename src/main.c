@@ -19,11 +19,14 @@ int main() {
   print_grammar(g);
 
   ff_table *fft = new_ff_table(g);
-
   calculate_firsts(g, fft);
   calculate_follows(g, fft);
   print_ff_table(fft);
 
+  ll1_table *ll1_t = new_ll1_table(g, fft);
+  print_ll1_table(ll1_t);
+
+  free_ll1_table(ll1_t);
   free_ff_table(fft);
   free_grammar(g);
 

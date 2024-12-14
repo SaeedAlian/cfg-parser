@@ -1,5 +1,107 @@
 #include "../include/ll1.h"
 
+ll1_table *new_ll1_table(grammar *g, ff_table *fft) {
+  if (g == NULL || fft == NULL)
+    return NULL;
+
+  ll1_table *nt = (ll1_table *)malloc(sizeof(ll1_table));
+  if (nt == NULL)
+    return NULL;
+
+  nt->vars_len = g->vars_len;
+  nt->terminals_len = g->terminals_len;
+
+  ll1_hashmap *ll1_hm = new_ll1_hashmap(nt->vars_len);
+  if (ll1_hm == NULL) {
+    free(nt);
+    return NULL;
+  }
+
+  for (int i = 0; i < nt->vars_len; i++) {
+    char var = g->vars[i];
+
+    int index = var - PRODS_INDEX_SHIFT;
+    var_firsts fr = fft->firsts[index];
+    var_follows fl = fft->follows[index];
+    int has_epsilon_first = var_has_epsilon_rhs(g, var);
+    production p = g->productions_table->productions[index];
+    production_rhs *epsilon_production_rhs = NULL;
+
+    rhs_hashmap *rhs_hm = new_rhs_hashmap(nt->terminals_len + 1);
+    if (rhs_hm == NULL) {
+      free_ll1_hashmap(ll1_hm);
+      free(nt);
+      return NULL;
+    }
+
+    for (int j = 0; j < fr.firsts_len; j++) {
+      first fi = fr.firsts[j];
+
+      if (fi.c == EPSILON) {
+        epsilon_production_rhs = fi.rhs;
+        continue;
+      }
+
+      int res = insert_into_rhs_hashmap(rhs_hm, fi.c, fi.rhs);
+      if (res != HASHMAP_INSERT_SUCCESS) {
+        free_rhs_hashmap(rhs_hm);
+        free_ll1_hashmap(ll1_hm);
+        free(nt);
+        return NULL;
+      }
+    }
+
+    if (has_epsilon_first && epsilon_production_rhs != NULL) {
+      for (int j = 0; j < fl.follows_len; j++) {
+        follow fo = fl.follows[j];
+
+        int res = insert_into_rhs_hashmap(rhs_hm, fo.c, epsilon_production_rhs);
+        if (res != HASHMAP_INSERT_SUCCESS) {
+          free_rhs_hashmap(rhs_hm);
+          free_ll1_hashmap(ll1_hm);
+          free(nt);
+          return NULL;
+        }
+      }
+    }
+
+    int res = insert_into_ll1_hashmap(ll1_hm, var, rhs_hm);
+    if (res != HASHMAP_INSERT_SUCCESS) {
+      free_rhs_hashmap(rhs_hm);
+      free_ll1_hashmap(ll1_hm);
+      free(nt);
+      return NULL;
+    }
+  }
+
+  nt->terminals = (char *)malloc(sizeof(char) * nt->terminals_len + 1);
+  if (nt->terminals == NULL) {
+    free_ll1_hashmap(ll1_hm);
+    free(nt);
+    return NULL;
+  }
+
+  nt->vars = (char *)malloc(sizeof(char) * nt->vars_len + 1);
+  if (nt->vars == NULL) {
+    free_ll1_hashmap(ll1_hm);
+    free(nt->terminals);
+    free(nt);
+    return NULL;
+  }
+
+  if (strcpy(nt->vars, g->vars) == NULL ||
+      strcpy(nt->terminals, g->terminals) == NULL) {
+    free_ll1_hashmap(ll1_hm);
+    free(nt->terminals);
+    free(nt->vars);
+    free(nt);
+    return NULL;
+  }
+
+  nt->table = ll1_hm;
+  return nt;
+}
+
 ff_table *new_ff_table(grammar *g) {
   if (g == NULL)
     return NULL;
@@ -525,6 +627,217 @@ void print_ff_table(ff_table *t) {
   }
 }
 
+ll1_hashmap_node *new_ll1_hashmap_node(char k, rhs_hashmap *v) {
+  ll1_hashmap_node *n = (ll1_hashmap_node *)malloc(sizeof(ll1_hashmap_node));
+
+  if (n == NULL)
+    return NULL;
+
+  n->key = k;
+  n->data = v;
+  n->next = NULL;
+
+  return n;
+}
+
+ll1_hashmap *new_ll1_hashmap(int max) {
+  ll1_hashmap *n = (ll1_hashmap *)malloc(sizeof(ll1_hashmap));
+  if (n == NULL)
+    return NULL;
+
+  n->max = max;
+
+  n->nodes = (ll1_hashmap_node **)malloc(sizeof(ll1_hashmap_node *) * max);
+  if (n->nodes == NULL) {
+    free(n);
+    return NULL;
+  }
+
+  for (int i = 0; i < n->max; i++)
+    n->nodes[i] = NULL;
+
+  return n;
+}
+
+int insert_into_ll1_hashmap(ll1_hashmap *hm, char k, rhs_hashmap *v) {
+  int index = ll1_hashmap_hash_func(hm, k);
+  if (index >= hm->max)
+    return HASHMAP_INSERT_FAILED;
+
+  ll1_hashmap_node *new_node = new_ll1_hashmap_node(k, v);
+  if (new_node == NULL)
+    return HASHMAP_INSERT_FAILED;
+
+  ll1_hashmap_node **curr_node = &hm->nodes[index];
+
+  while ((*curr_node) != NULL) {
+    if ((*curr_node)->key == k)
+      return HASHMAP_INSERT_DUPLICATE;
+
+    curr_node = &(*curr_node)->next;
+  }
+
+  *curr_node = new_node;
+
+  return HASHMAP_INSERT_SUCCESS;
+}
+
+int search_ll1_hashmap(ll1_hashmap *hm, char k, rhs_hashmap **output) {
+  int index = ll1_hashmap_hash_func(hm, k);
+  if (index >= hm->max)
+    return HASHMAP_KEY_FOUND_ERROR;
+
+  ll1_hashmap_node *curr_node = hm->nodes[index];
+
+  while (curr_node != NULL) {
+    if (curr_node->key == k) {
+      *output = curr_node->data;
+      return HASHMAP_KEY_FOUND_SUCCESS;
+    }
+
+    curr_node = curr_node->next;
+  }
+
+  return HASHMAP_KEY_NOT_FOUND;
+}
+
+rhs_hashmap_node *new_rhs_hashmap_node(char k, production_rhs *v) {
+  rhs_hashmap_node *n = (rhs_hashmap_node *)malloc(sizeof(rhs_hashmap_node));
+
+  if (n == NULL)
+    return NULL;
+
+  n->key = k;
+  n->data = v;
+  n->next = NULL;
+
+  return n;
+}
+
+rhs_hashmap *new_rhs_hashmap(int max) {
+  rhs_hashmap *n = (rhs_hashmap *)malloc(sizeof(rhs_hashmap));
+  if (n == NULL)
+    return NULL;
+
+  n->max = max;
+
+  n->nodes = (rhs_hashmap_node **)malloc(sizeof(rhs_hashmap_node *) * max);
+  if (n->nodes == NULL) {
+    free(n);
+    return NULL;
+  }
+
+  for (int i = 0; i < n->max; i++)
+    n->nodes[i] = NULL;
+
+  return n;
+}
+
+int insert_into_rhs_hashmap(rhs_hashmap *hm, char k, production_rhs *v) {
+  int index = rhs_hashmap_hash_func(hm, k);
+  if (index >= hm->max)
+    return HASHMAP_INSERT_FAILED;
+
+  rhs_hashmap_node *new_node = new_rhs_hashmap_node(k, v);
+  if (new_node == NULL)
+    return HASHMAP_INSERT_FAILED;
+
+  rhs_hashmap_node **curr_node = &hm->nodes[index];
+
+  while ((*curr_node) != NULL) {
+    if ((*curr_node)->key == k)
+      return HASHMAP_INSERT_DUPLICATE;
+
+    curr_node = &(*curr_node)->next;
+  }
+
+  *curr_node = new_node;
+
+  return HASHMAP_INSERT_SUCCESS;
+}
+
+int search_rhs_hashmap(rhs_hashmap *hm, char k, production_rhs **output) {
+  int index = rhs_hashmap_hash_func(hm, k);
+  if (index >= hm->max)
+    return HASHMAP_KEY_FOUND_ERROR;
+
+  rhs_hashmap_node *curr_node = hm->nodes[index];
+
+  while (curr_node != NULL) {
+    if (curr_node->key == k) {
+      *output = curr_node->data;
+      return HASHMAP_KEY_FOUND_SUCCESS;
+    }
+
+    curr_node = curr_node->next;
+  }
+
+  return HASHMAP_KEY_NOT_FOUND;
+}
+
+int ll1_hashmap_hash_func(ll1_hashmap *hm, char k) { return k % hm->max; }
+int rhs_hashmap_hash_func(rhs_hashmap *hm, char k) { return k % hm->max; }
+
+void print_ll1_hashmap_node(ll1_hashmap_node *n) {
+  printf("      %c: \n", n->key);
+  rhs_hashmap *hm = n->data;
+
+  for (int i = 0; i < hm->max; i++) {
+    rhs_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      printf("         %c: ", curr_node->key);
+      production p;
+      p.var = curr_node->data->for_var;
+      p.first_rhs = curr_node->data;
+      p.first_rhs->next = NULL;
+      p.len = 1;
+      print_production(p, 0);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
+
+void print_ll1_hashmap(ll1_hashmap *hm) {
+  printf("LL1 Hashmap:\n");
+  printf("   Nodes:\n");
+
+  for (int i = 0; i < hm->max; i++) {
+    ll1_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      print_ll1_hashmap_node(curr_node);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
+
+void print_rhs_hashmap_node(rhs_hashmap_node *n) {
+  printf("      %c: ", n->key);
+  production p;
+  p.var = n->data->for_var;
+  p.first_rhs = n->data;
+  p.first_rhs->next = NULL;
+  p.len = 1;
+  print_production(p, 0);
+}
+
+void print_rhs_hashmap(rhs_hashmap *hm) {
+  printf("RHS Hashmap:\n");
+  printf("   Nodes:\n");
+
+  for (int i = 0; i < hm->max; i++) {
+    rhs_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      print_rhs_hashmap_node(curr_node);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
 
 void free_ff_table(ff_table *t) {
   for (int i = 0; i < MAX_PRODS; i++) {
@@ -545,3 +858,183 @@ void free_ff_table(ff_table *t) {
   free(t);
 }
 
+void free_ll1_table(ll1_table *t) {
+  free_ll1_hashmap(t->table);
+  free(t->terminals);
+  free(t->vars);
+  free(t);
+}
+
+void free_ll1_hashmap(ll1_hashmap *hm) {
+  for (int i = 0; i < hm->max; i++)
+    free_ll1_hashmap_node(hm->nodes[i]);
+
+  free(hm->nodes);
+  free(hm);
+}
+
+void free_ll1_hashmap_node(ll1_hashmap_node *n) {
+  if (n == NULL)
+    return;
+  free_ll1_hashmap_node(n->next);
+  free_rhs_hashmap(n->data);
+  free(n);
+}
+
+void free_rhs_hashmap(rhs_hashmap *hm) {
+  for (int i = 0; i < hm->max; i++)
+    free_rhs_hashmap_node(hm->nodes[i]);
+
+  free(hm->nodes);
+  free(hm);
+}
+
+void free_rhs_hashmap_node(rhs_hashmap_node *n) {
+  if (n == NULL)
+    return;
+  free_rhs_hashmap_node(n->next);
+  free(n);
+}
+
+void print_ll1_table(ll1_table *t) {
+  printf("LL1 Table:\n\n");
+  printf("      |");
+
+  int padding;
+  production_rhs *max_len_rhs = NULL;
+
+  for (int i = 0; i < t->vars_len; i++) {
+    char var = t->vars[i];
+    rhs_hashmap *rhs_hm;
+
+    production_rhs *curr_rhs = NULL;
+
+    if (search_ll1_hashmap(t->table, var, &rhs_hm) ==
+        HASHMAP_KEY_FOUND_SUCCESS) {
+
+      for (int j = 0; j < t->terminals_len + 1; j++) {
+        char terminal;
+
+        if (j == t->terminals_len) {
+          terminal = TERMINATE_SYMBOL;
+        } else {
+          terminal = t->terminals[j];
+        }
+
+        if (search_rhs_hashmap(rhs_hm, terminal, &curr_rhs) ==
+            HASHMAP_KEY_FOUND_SUCCESS) {
+          if (max_len_rhs == NULL) {
+            max_len_rhs = curr_rhs;
+            continue;
+          }
+
+          if (strlen(max_len_rhs->rhs) < strlen(curr_rhs->rhs)) {
+            max_len_rhs = curr_rhs;
+          }
+        }
+      }
+    }
+  }
+
+  if (max_len_rhs != NULL) {
+    padding = strlen(max_len_rhs->rhs) + 1;
+
+    if (padding % 2 == 1)
+      padding++;
+  } else {
+    padding = 6;
+  }
+
+  int totalspace = padding * 2 + 1;
+
+  for (int i = 0; i < t->terminals_len + 1; i++) {
+    char terminal;
+
+    if (i == t->terminals_len) {
+      terminal = TERMINATE_SYMBOL;
+    } else {
+      terminal = t->terminals[i];
+    }
+
+    for (int j = 0; j < padding; j++) {
+      printf(" ");
+    }
+
+    printf("%c", terminal);
+
+    for (int j = 0; j < padding; j++) {
+      printf(" ");
+    }
+
+    printf("|");
+  }
+
+  for (int i = 0; i < t->vars_len; i++) {
+    printf("\n");
+
+    printf("    -");
+    for (int j = 0; j < t->terminals_len + 1; j++) {
+      for (int k = 0; k < totalspace + 2; k++)
+        printf("-");
+    }
+
+    char var = t->vars[i];
+    printf("\n");
+    printf("    ");
+    printf("%c |", var);
+
+    rhs_hashmap *rhs_hm;
+    if (search_ll1_hashmap(t->table, var, &rhs_hm) ==
+        HASHMAP_KEY_FOUND_SUCCESS) {
+      production_rhs *rhs;
+
+      for (int j = 0; j < t->terminals_len + 1; j++) {
+        char terminal;
+
+        if (j == t->terminals_len) {
+          terminal = TERMINATE_SYMBOL;
+        } else {
+          terminal = t->terminals[j];
+        }
+
+        if (search_rhs_hashmap(rhs_hm, terminal, &rhs) ==
+            HASHMAP_KEY_FOUND_SUCCESS) {
+          int rhs_len;
+
+          if (rhs->rhs[0] == EPSILON) {
+            rhs_len = 3 + 5;
+          } else {
+            rhs_len = strlen(rhs->rhs) + 5;
+          }
+
+          int pd = (totalspace - rhs_len);
+
+          for (int k = 0; k < pd / 2; k++)
+            printf(" ");
+
+          if (rhs->rhs[0] == EPSILON) {
+            printf("%c -> eps", var);
+          } else {
+            printf("%c -> %s", var, rhs->rhs);
+          }
+
+          for (int k = 0; k < pd / 2; k++)
+            printf(" ");
+
+          if (pd % 2 == 1) {
+            printf(" ");
+          }
+
+          printf("|");
+        } else {
+          for (int k = 0; k < totalspace; k++)
+            printf(" ");
+
+          printf("|");
+        }
+      }
+    }
+  }
+
+  printf("\n");
+}
