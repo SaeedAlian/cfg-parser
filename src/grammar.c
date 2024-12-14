@@ -126,7 +126,7 @@ int get_production(grammar *g, char var, production *prod) {
   return PRODUCTION_FOUND;
 }
 
-int prod_has_epsilon_rhs(grammar *g, char var) {
+int var_has_epsilon_rhs(grammar *g, char var) {
   if (var < MIN_PROD_CHAR || var > MAX_PROD_CHAR)
     return INCORRECT_VAR_SIGN;
 
