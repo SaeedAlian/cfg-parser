@@ -8,13 +8,13 @@ ff_table *new_ff_table(grammar *g) {
   if (nt == NULL)
     return NULL;
 
-  nt->firsts = (first *)malloc(sizeof(first) * MAX_PRODS);
+  nt->firsts = (var_firsts *)malloc(sizeof(var_firsts) * MAX_PRODS);
   if (nt->firsts == NULL) {
     free(nt);
     return NULL;
   }
 
-  nt->follows = (follow *)malloc(sizeof(follow) * MAX_PRODS);
+  nt->follows = (var_follows *)malloc(sizeof(var_follows) * MAX_PRODS);
   if (nt->follows == NULL) {
     free(nt->firsts);
     free(nt);
@@ -58,6 +58,30 @@ int calculate_firsts(grammar *g, ff_table *fft) {
   return SUCCESS_ON_FIRST_CALC;
 }
 
+int calculate_follows(grammar *g, ff_table *fft) {
+  production_table *t = g->productions_table;
+
+  for (int i = 0; i < MAX_PRODS; i++) {
+    production p = t->productions[i];
+
+    if (p.first_rhs != NULL) {
+      var_follows curr = fft->follows[i];
+
+      if (curr.follows == NULL &&
+          curr.follows_len == FOLLOW_LEN_NOT_CALCULATED && curr.var != '\0') {
+        int res = find_follow(t, &fft, p.var, g->start_var);
+
+        if (res == FOLLOW_ALREADY_CALCULATED)
+          continue;
+        if (res != SUCCESS_ON_FOLLOW_CALC)
+          return res;
+      }
+    }
+  }
+
+  return SUCCESS_ON_FOLLOW_CALC;
+}
+
 int find_first(production_table *t, ff_table *fft, char var) {
   if (var < MIN_PROD_CHAR || var > MAX_PROD_CHAR) {
     return INCORRECT_VAR_SIGN;
@@ -71,7 +95,7 @@ int find_first(production_table *t, ff_table *fft, char var) {
 
   int l = 0;
   int max = 5;
-  char *f = (char *)malloc(sizeof(char) * max);
+  first *f = (first *)malloc(sizeof(first) * max);
 
   if (f == NULL) {
     free_production_rhs_stack(s);
@@ -81,6 +105,7 @@ int find_first(production_table *t, ff_table *fft, char var) {
   int index = var - PRODS_INDEX_SHIFT;
   production p = t->productions[index];
   production_rhs *curr_rhs = p.first_rhs;
+  production_rhs *selected_rhs = p.first_rhs;
 
   if (curr_rhs == NULL || fft->firsts[index].var == '\0') {
     free_production_rhs_stack(s);
@@ -88,23 +113,23 @@ int find_first(production_table *t, ff_table *fft, char var) {
   }
 
   while (curr_rhs != NULL) {
-    char first = curr_rhs->rhs[0];
+    char fi = curr_rhs->rhs[0];
 
-    if (first >= MIN_PROD_CHAR && first <= MAX_PROD_CHAR) {
+    if (fi >= MIN_PROD_CHAR && fi <= MAX_PROD_CHAR) {
       if (curr_rhs->next) {
         production_rhs_stack_push(s, curr_rhs->next);
       }
 
-      int nindex = first - PRODS_INDEX_SHIFT;
+      int nindex = fi - PRODS_INDEX_SHIFT;
       production np = t->productions[nindex];
       curr_rhs = np.first_rhs;
       continue;
     }
 
-    if (strchr(f, first) == NULL) {
+    if (check_first_duplicate(f, l, fi) == DUPLICATED_FIRST_NOT_FOUND) {
       if (l == max) {
         max *= 2;
-        f = (char *)realloc(f, sizeof(char) * max);
+        f = (first *)realloc(f, sizeof(first) * max);
 
         if (f == NULL) {
           free_production_rhs_stack(s);
@@ -112,7 +137,9 @@ int find_first(production_table *t, ff_table *fft, char var) {
         }
       }
 
-      f[l++] = first;
+      f[l].c = fi;
+      f[l].rhs = selected_rhs;
+      l++;
     }
 
     if (curr_rhs->next == NULL) {
@@ -124,9 +151,11 @@ int find_first(production_table *t, ff_table *fft, char var) {
     } else {
       curr_rhs = curr_rhs->next;
     }
+
+    if (curr_rhs != NULL && curr_rhs->for_var == var)
+      selected_rhs = curr_rhs;
   }
 
-  f[l] = '\0';
   fft->firsts[index].firsts = f;
   fft->firsts[index].firsts_len = l;
 
@@ -148,7 +177,7 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
 
   int l = 0;
   int max = 5;
-  char *f = (char *)malloc(sizeof(char) * max);
+  follow *f = (follow *)malloc(sizeof(follow) * max);
 
   if (f == NULL) {
     free_production_rhs_stack(s);
@@ -156,7 +185,7 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
   }
 
   int index = var - PRODS_INDEX_SHIFT;
-  follow *fl = &(*fft)->follows[index];
+  var_follows *fl = &(*fft)->follows[index];
   int is_calculated = fl->follows_len != FOLLOW_LEN_CALCULATING &&
                       fl->follows_len != FOLLOW_LEN_NOT_CALCULATED;
 
@@ -172,7 +201,8 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
   fl->follows_len = FOLLOW_LEN_CALCULATING;
 
   if (var == start_var) {
-    f[l++] = TERMINATE_SYMBOL;
+    f[l].c = TERMINATE_SYMBOL;
+    l++;
   }
 
   for (int i = 0; i < MAX_PRODS; i++) {
@@ -211,7 +241,8 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
       int is_reached_non_epsilon_var = 0;
 
       while (*curr_char >= MIN_PROD_CHAR && *curr_char <= MAX_PROD_CHAR) {
-        first curr_char_firsts = (*fft)->firsts[*curr_char - PRODS_INDEX_SHIFT];
+        var_firsts curr_char_firsts =
+            (*fft)->firsts[*curr_char - PRODS_INDEX_SHIFT];
 
         if (curr_char_firsts.firsts == NULL || curr_char_firsts.var == '\0') {
           return ERROR_ON_FOLLOW_CALC;
@@ -220,23 +251,24 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
         int contains_epsilon = 0;
 
         for (int i = 0; i < curr_char_firsts.firsts_len; i++) {
-          char first = curr_char_firsts.firsts[i];
+          first fi = curr_char_firsts.firsts[i];
 
-          if (first == EPSILON) {
+          if (fi.c == EPSILON) {
             contains_epsilon = 1;
             continue;
           }
 
-          if (strchr(f, first) != NULL) {
+          if (check_follow_duplicate(f, l, fi.c) == DUPLICATED_FOLLOW_FOUND) {
             continue;
           }
 
           if (l == max) {
             max *= 2;
-            f = (char *)realloc(f, sizeof(char) * max);
+            f = (follow *)realloc(f, sizeof(follow) * max);
           }
 
-          f[l++] = first;
+          f[l].c = fi.c;
+          l++;
         }
 
         if (!contains_epsilon) {
@@ -248,14 +280,15 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
       }
 
       if (*curr_char != '\0' && !is_reached_non_epsilon_var) {
-        if (strchr(f, *curr_char) == NULL) {
-
+        if (check_follow_duplicate(f, l, *curr_char) ==
+            DUPLICATED_FOLLOW_NOT_FOUND) {
           if (l == max) {
             max *= 2;
-            f = (char *)realloc(f, sizeof(char) * max);
+            f = (follow *)realloc(f, sizeof(follow) * max);
           }
 
-          f[l++] = *curr_char;
+          f[l].c = *curr_char;
+          l++;
         }
       }
 
@@ -263,7 +296,8 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
         char top_lhs = top->for_var;
 
         if (top_lhs != *match) {
-          follow top_lhs_follows = (*fft)->follows[top_lhs - PRODS_INDEX_SHIFT];
+          var_follows top_lhs_follows =
+              (*fft)->follows[top_lhs - PRODS_INDEX_SHIFT];
 
           int lhs_follows_is_calculated =
               top_lhs_follows.follows_len != FOLLOW_LEN_CALCULATING &&
@@ -279,18 +313,20 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
             return GRAMMAR_IS_NOT_LL1;
           } else if (lhs_follows_is_calculated) {
             for (int i = 0; i < top_lhs_follows.follows_len; i++) {
-              char follow = top_lhs_follows.follows[i];
+              follow fo = top_lhs_follows.follows[i];
 
-              if (strchr(f, follow) != NULL) {
+              if (check_follow_duplicate(f, l, fo.c) ==
+                  DUPLICATED_FOLLOW_FOUND) {
                 continue;
               }
 
               if (l == max) {
                 max *= 2;
-                f = (char *)realloc(f, sizeof(char) * max);
+                f = (follow *)realloc(f, sizeof(follow) * max);
               }
 
-              f[l++] = follow;
+              f[l].c = fo.c;
+              l++;
             }
           } else {
             int res = find_follow(t, fft, top_lhs, start_var);
@@ -298,67 +334,63 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
             if (res != SUCCESS_ON_FOLLOW_CALC)
               return res;
 
-            follow updated_top_lhs_follows =
+            var_follows updated_top_lhs_follows =
                 (*fft)->follows[top_lhs - PRODS_INDEX_SHIFT];
 
             for (int i = 0; i < updated_top_lhs_follows.follows_len; i++) {
-              char follow = updated_top_lhs_follows.follows[i];
+              follow fo = updated_top_lhs_follows.follows[i];
 
-              if (strchr(f, follow) != NULL) {
+              if (check_follow_duplicate(f, l, fo.c) ==
+                  DUPLICATED_FOLLOW_FOUND) {
                 continue;
               }
 
               if (l == max) {
                 max *= 2;
-                f = (char *)realloc(f, sizeof(char) * max);
+                f = (follow *)realloc(f, sizeof(follow) * max);
               }
 
-              f[l++] = follow;
+              f[l].c = fo.c;
+              l++;
             }
           }
         }
       }
     } else {
-      if (strchr(f, *next) == NULL) {
+      if (check_follow_duplicate(f, l, *next) == DUPLICATED_FOLLOW_NOT_FOUND) {
         if (l == max) {
           max *= 2;
-          f = (char *)realloc(f, sizeof(char) * max);
+          f = (follow *)realloc(f, sizeof(follow) * max);
         }
 
-        f[l++] = *next;
+        f[l].c = *next;
+        l++;
       }
     }
   }
 
-  f[l] = '\0';
   fl->follows = f;
   fl->follows_len = l;
   free_production_rhs_stack(s);
   return SUCCESS_ON_FOLLOW_CALC;
 }
 
-int calculate_follows(grammar *g, ff_table *fft) {
-  production_table *t = g->productions_table;
-
-  for (int i = 0; i < MAX_PRODS; i++) {
-    production p = t->productions[i];
-
-    if (p.first_rhs != NULL) {
-      follow curr = fft->follows[i];
-
-      if (curr.follows == NULL &&
-          curr.follows_len == FOLLOW_LEN_NOT_CALCULATED && curr.var != '\0') {
-        int res = find_follow(t, &fft, p.var, g->start_var);
-
-        if (res == FOLLOW_ALREADY_CALCULATED)
-          continue;
-        if (res != SUCCESS_ON_FOLLOW_CALC)
-          return res;
-      }
-    }
+int check_first_duplicate(first *f, int f_len, char c) {
+  for (int i = 0; i < f_len; i++) {
+    if (f[i].c == c)
+      return DUPLICATED_FIRST_FOUND;
   }
 
-  return SUCCESS_ON_FOLLOW_CALC;
+  return DUPLICATED_FIRST_NOT_FOUND;
+}
+
+int check_follow_duplicate(follow *f, int f_len, char c) {
+  for (int i = 0; i < f_len; i++) {
+    if (f[i].c == c)
+      return DUPLICATED_FOLLOW_FOUND;
+  }
+
+  return DUPLICATED_FOLLOW_NOT_FOUND;
 }
 
 void print_ff_table(ff_table *t) {
@@ -366,25 +398,25 @@ void print_ff_table(ff_table *t) {
   printf("   Firsts:\n");
 
   for (int i = 0; i < MAX_PRODS; i++) {
-    first fr = t->firsts[i];
+    var_firsts fr = t->firsts[i];
 
     if (fr.var != '\0' && fr.firsts != NULL) {
       printf("      %c = {", fr.var);
 
       for (int j = 0; j < fr.firsts_len; j++) {
-        char f = fr.firsts[j];
+        first f = fr.firsts[j];
 
         if (j == fr.firsts_len - 1) {
-          if (f == EPSILON) {
+          if (f.c == EPSILON) {
             printf("epsilon");
           } else {
-            printf("%c", f);
+            printf("%c", f.c);
           }
         } else {
-          if (f == EPSILON) {
+          if (f.c == EPSILON) {
             printf("epsilon,");
           } else {
-            printf("%c,", f);
+            printf("%c,", f.c);
           }
         }
       }
@@ -397,25 +429,25 @@ void print_ff_table(ff_table *t) {
   printf("   Follows:\n");
 
   for (int i = 0; i < MAX_PRODS; i++) {
-    follow fl = t->follows[i];
+    var_follows fl = t->follows[i];
 
     if (fl.var != '\0' && fl.follows != NULL) {
       printf("      %c = {", fl.var);
 
       for (int j = 0; j < fl.follows_len; j++) {
-        char f = fl.follows[j];
+        follow f = fl.follows[j];
 
         if (j == fl.follows_len - 1) {
-          if (f == EPSILON) {
+          if (f.c == EPSILON) {
             printf("epsilon");
           } else {
-            printf("%c", f);
+            printf("%c", f.c);
           }
         } else {
-          if (f == EPSILON) {
+          if (f.c == EPSILON) {
             printf("epsilon,");
           } else {
-            printf("%c,", f);
+            printf("%c,", f.c);
           }
         }
       }

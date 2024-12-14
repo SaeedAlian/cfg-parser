@@ -18,25 +18,41 @@
 #define SUCCESS_ON_FIRST_CALC 1
 #define SUCCESS_ON_FOLLOW_CALC 1
 #define FOLLOW_ALREADY_CALCULATED -2
+#define DUPLICATED_FIRST_FOUND 1
+#define DUPLICATED_FIRST_NOT_FOUND 0
+#define DUPLICATED_FOLLOW_FOUND 1
+#define DUPLICATED_FOLLOW_NOT_FOUND 0
 
 typedef struct first {
-  char var;
-  int firsts_len;
-  char *firsts;
+  char c;
+  production_rhs *rhs;
 } first;
 
 typedef struct follow {
-  char var;
-  int follows_len;
-  char *follows;
+  char c;
 } follow;
 
-typedef struct ff_table {
+typedef struct var_firsts {
+  char var;
+  int firsts_len;
   first *firsts;
+} var_firsts;
+
+typedef struct var_follows {
+  char var;
+  int follows_len;
   follow *follows;
+} var_follows;
+
+typedef struct ff_table {
+  var_firsts *firsts;
+  var_follows *follows;
 } ff_table;
 
 void free_ff_table(ff_table *t);
+
+int check_first_duplicate(first *f, int f_len, char c);
+int check_follow_duplicate(follow *f, int f_len, char c);
 
 ff_table *new_ff_table(grammar *g);
 int find_first(production_table *t, ff_table *fft, char var);
