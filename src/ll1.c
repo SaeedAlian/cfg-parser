@@ -563,70 +563,6 @@ int check_follow_duplicate(follow *f, int f_len, char c) {
   return DUPLICATED_FOLLOW_NOT_FOUND;
 }
 
-void print_ff_table(ff_table *t) {
-  printf("FF Table:\n");
-  printf("   Firsts:\n");
-
-  for (int i = 0; i < MAX_PRODS; i++) {
-    var_firsts fr = t->firsts[i];
-
-    if (fr.var != '\0' && fr.firsts != NULL) {
-      printf("      %c = {", fr.var);
-
-      for (int j = 0; j < fr.firsts_len; j++) {
-        first f = fr.firsts[j];
-
-        if (j == fr.firsts_len - 1) {
-          if (f.c == EPSILON) {
-            printf("epsilon");
-          } else {
-            printf("%c", f.c);
-          }
-        } else {
-          if (f.c == EPSILON) {
-            printf("epsilon,");
-          } else {
-            printf("%c,", f.c);
-          }
-        }
-      }
-      printf("}");
-      printf("\n");
-    }
-  }
-
-  printf("\n");
-  printf("   Follows:\n");
-
-  for (int i = 0; i < MAX_PRODS; i++) {
-    var_follows fl = t->follows[i];
-
-    if (fl.var != '\0' && fl.follows != NULL) {
-      printf("      %c = {", fl.var);
-
-      for (int j = 0; j < fl.follows_len; j++) {
-        follow f = fl.follows[j];
-
-        if (j == fl.follows_len - 1) {
-          if (f.c == EPSILON) {
-            printf("epsilon");
-          } else {
-            printf("%c", f.c);
-          }
-        } else {
-          if (f.c == EPSILON) {
-            printf("epsilon,");
-          } else {
-            printf("%c,", f.c);
-          }
-        }
-      }
-      printf("}");
-      printf("\n");
-    }
-  }
-}
-
 ll1_hashmap_node *new_ll1_hashmap_node(char k, rhs_hashmap *v) {
   ll1_hashmap_node *n = (ll1_hashmap_node *)malloc(sizeof(ll1_hashmap_node));
 
@@ -648,6 +584,38 @@ ll1_hashmap *new_ll1_hashmap(int max) {
   n->max = max;
 
   n->nodes = (ll1_hashmap_node **)malloc(sizeof(ll1_hashmap_node *) * max);
+  if (n->nodes == NULL) {
+    free(n);
+    return NULL;
+  }
+
+  for (int i = 0; i < n->max; i++)
+    n->nodes[i] = NULL;
+
+  return n;
+}
+
+rhs_hashmap_node *new_rhs_hashmap_node(char k, production_rhs *v) {
+  rhs_hashmap_node *n = (rhs_hashmap_node *)malloc(sizeof(rhs_hashmap_node));
+
+  if (n == NULL)
+    return NULL;
+
+  n->key = k;
+  n->data = v;
+  n->next = NULL;
+
+  return n;
+}
+
+rhs_hashmap *new_rhs_hashmap(int max) {
+  rhs_hashmap *n = (rhs_hashmap *)malloc(sizeof(rhs_hashmap));
+  if (n == NULL)
+    return NULL;
+
+  n->max = max;
+
+  n->nodes = (rhs_hashmap_node **)malloc(sizeof(rhs_hashmap_node *) * max);
   if (n->nodes == NULL) {
     free(n);
     return NULL;
@@ -701,38 +669,6 @@ int search_ll1_hashmap(ll1_hashmap *hm, char k, rhs_hashmap **output) {
   return HASHMAP_KEY_NOT_FOUND;
 }
 
-rhs_hashmap_node *new_rhs_hashmap_node(char k, production_rhs *v) {
-  rhs_hashmap_node *n = (rhs_hashmap_node *)malloc(sizeof(rhs_hashmap_node));
-
-  if (n == NULL)
-    return NULL;
-
-  n->key = k;
-  n->data = v;
-  n->next = NULL;
-
-  return n;
-}
-
-rhs_hashmap *new_rhs_hashmap(int max) {
-  rhs_hashmap *n = (rhs_hashmap *)malloc(sizeof(rhs_hashmap));
-  if (n == NULL)
-    return NULL;
-
-  n->max = max;
-
-  n->nodes = (rhs_hashmap_node **)malloc(sizeof(rhs_hashmap_node *) * max);
-  if (n->nodes == NULL) {
-    free(n);
-    return NULL;
-  }
-
-  for (int i = 0; i < n->max; i++)
-    n->nodes[i] = NULL;
-
-  return n;
-}
-
 int insert_into_rhs_hashmap(rhs_hashmap *hm, char k, production_rhs *v) {
   int index = rhs_hashmap_hash_func(hm, k);
   if (index >= hm->max)
@@ -777,124 +713,6 @@ int search_rhs_hashmap(rhs_hashmap *hm, char k, production_rhs **output) {
 
 int ll1_hashmap_hash_func(ll1_hashmap *hm, char k) { return k % hm->max; }
 int rhs_hashmap_hash_func(rhs_hashmap *hm, char k) { return k % hm->max; }
-
-void print_ll1_hashmap_node(ll1_hashmap_node *n) {
-  printf("      %c: \n", n->key);
-  rhs_hashmap *hm = n->data;
-
-  for (int i = 0; i < hm->max; i++) {
-    rhs_hashmap_node *curr_node = hm->nodes[i];
-
-    while (curr_node != NULL) {
-      printf("         %c: ", curr_node->key);
-      production p;
-      p.var = curr_node->data->for_var;
-      p.first_rhs = curr_node->data;
-      p.first_rhs->next = NULL;
-      p.len = 1;
-      print_production(p, 0);
-      printf("\n");
-      curr_node = curr_node->next;
-    }
-  }
-}
-
-void print_ll1_hashmap(ll1_hashmap *hm) {
-  printf("LL1 Hashmap:\n");
-  printf("   Nodes:\n");
-
-  for (int i = 0; i < hm->max; i++) {
-    ll1_hashmap_node *curr_node = hm->nodes[i];
-
-    while (curr_node != NULL) {
-      print_ll1_hashmap_node(curr_node);
-      printf("\n");
-      curr_node = curr_node->next;
-    }
-  }
-}
-
-void print_rhs_hashmap_node(rhs_hashmap_node *n) {
-  printf("      %c: ", n->key);
-  production p;
-  p.var = n->data->for_var;
-  p.first_rhs = n->data;
-  p.first_rhs->next = NULL;
-  p.len = 1;
-  print_production(p, 0);
-}
-
-void print_rhs_hashmap(rhs_hashmap *hm) {
-  printf("RHS Hashmap:\n");
-  printf("   Nodes:\n");
-
-  for (int i = 0; i < hm->max; i++) {
-    rhs_hashmap_node *curr_node = hm->nodes[i];
-
-    while (curr_node != NULL) {
-      print_rhs_hashmap_node(curr_node);
-      printf("\n");
-      curr_node = curr_node->next;
-    }
-  }
-}
-
-void free_ff_table(ff_table *t) {
-  for (int i = 0; i < MAX_PRODS; i++) {
-    var_firsts fr = t->firsts[i];
-    var_follows fl = t->follows[i];
-
-    if (fr.var != '\0' && fr.firsts != NULL) {
-      free(fr.firsts);
-    }
-
-    if (fl.var != '\0' && fl.follows != NULL) {
-      free(fl.follows);
-    }
-  }
-
-  free(t->firsts);
-  free(t->follows);
-  free(t);
-}
-
-void free_ll1_table(ll1_table *t) {
-  free_ll1_hashmap(t->table);
-  free(t->terminals);
-  free(t->vars);
-  free(t);
-}
-
-void free_ll1_hashmap(ll1_hashmap *hm) {
-  for (int i = 0; i < hm->max; i++)
-    free_ll1_hashmap_node(hm->nodes[i]);
-
-  free(hm->nodes);
-  free(hm);
-}
-
-void free_ll1_hashmap_node(ll1_hashmap_node *n) {
-  if (n == NULL)
-    return;
-  free_ll1_hashmap_node(n->next);
-  free_rhs_hashmap(n->data);
-  free(n);
-}
-
-void free_rhs_hashmap(rhs_hashmap *hm) {
-  for (int i = 0; i < hm->max; i++)
-    free_rhs_hashmap_node(hm->nodes[i]);
-
-  free(hm->nodes);
-  free(hm);
-}
-
-void free_rhs_hashmap_node(rhs_hashmap_node *n) {
-  if (n == NULL)
-    return;
-  free_rhs_hashmap_node(n->next);
-  free(n);
-}
 
 void print_ll1_table(ll1_table *t) {
   printf("LL1 Table:\n\n");
@@ -1037,4 +855,186 @@ void print_ll1_table(ll1_table *t) {
   }
 
   printf("\n");
+}
+
+void print_ff_table(ff_table *t) {
+  printf("FF Table:\n");
+  printf("   Firsts:\n");
+
+  for (int i = 0; i < MAX_PRODS; i++) {
+    var_firsts fr = t->firsts[i];
+
+    if (fr.var != '\0' && fr.firsts != NULL) {
+      printf("      %c = {", fr.var);
+
+      for (int j = 0; j < fr.firsts_len; j++) {
+        first f = fr.firsts[j];
+
+        if (j == fr.firsts_len - 1) {
+          if (f.c == EPSILON) {
+            printf("epsilon");
+          } else {
+            printf("%c", f.c);
+          }
+        } else {
+          if (f.c == EPSILON) {
+            printf("epsilon,");
+          } else {
+            printf("%c,", f.c);
+          }
+        }
+      }
+      printf("}");
+      printf("\n");
+    }
+  }
+
+  printf("\n");
+  printf("   Follows:\n");
+
+  for (int i = 0; i < MAX_PRODS; i++) {
+    var_follows fl = t->follows[i];
+
+    if (fl.var != '\0' && fl.follows != NULL) {
+      printf("      %c = {", fl.var);
+
+      for (int j = 0; j < fl.follows_len; j++) {
+        follow f = fl.follows[j];
+
+        if (j == fl.follows_len - 1) {
+          if (f.c == EPSILON) {
+            printf("epsilon");
+          } else {
+            printf("%c", f.c);
+          }
+        } else {
+          if (f.c == EPSILON) {
+            printf("epsilon,");
+          } else {
+            printf("%c,", f.c);
+          }
+        }
+      }
+      printf("}");
+      printf("\n");
+    }
+  }
+}
+
+void print_ll1_hashmap_node(ll1_hashmap_node *n) {
+  printf("      %c: \n", n->key);
+  rhs_hashmap *hm = n->data;
+
+  for (int i = 0; i < hm->max; i++) {
+    rhs_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      printf("         %c: ", curr_node->key);
+      production p;
+      p.var = curr_node->data->for_var;
+      p.first_rhs = curr_node->data;
+      p.first_rhs->next = NULL;
+      p.len = 1;
+      print_production(p, 0);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
+
+void print_ll1_hashmap(ll1_hashmap *hm) {
+  printf("LL1 Hashmap:\n");
+  printf("   Nodes:\n");
+
+  for (int i = 0; i < hm->max; i++) {
+    ll1_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      print_ll1_hashmap_node(curr_node);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
+
+void print_rhs_hashmap_node(rhs_hashmap_node *n) {
+  printf("      %c: ", n->key);
+  production p;
+  p.var = n->data->for_var;
+  p.first_rhs = n->data;
+  p.first_rhs->next = NULL;
+  p.len = 1;
+  print_production(p, 0);
+}
+
+void print_rhs_hashmap(rhs_hashmap *hm) {
+  printf("RHS Hashmap:\n");
+  printf("   Nodes:\n");
+
+  for (int i = 0; i < hm->max; i++) {
+    rhs_hashmap_node *curr_node = hm->nodes[i];
+
+    while (curr_node != NULL) {
+      print_rhs_hashmap_node(curr_node);
+      printf("\n");
+      curr_node = curr_node->next;
+    }
+  }
+}
+
+void free_ll1_table(ll1_table *t) {
+  free_ll1_hashmap(t->table);
+  free(t->terminals);
+  free(t->vars);
+  free(t);
+}
+
+void free_ff_table(ff_table *t) {
+  for (int i = 0; i < MAX_PRODS; i++) {
+    var_firsts fr = t->firsts[i];
+    var_follows fl = t->follows[i];
+
+    if (fr.var != '\0' && fr.firsts != NULL) {
+      free(fr.firsts);
+    }
+
+    if (fl.var != '\0' && fl.follows != NULL) {
+      free(fl.follows);
+    }
+  }
+
+  free(t->firsts);
+  free(t->follows);
+  free(t);
+}
+
+void free_ll1_hashmap(ll1_hashmap *hm) {
+  for (int i = 0; i < hm->max; i++)
+    free_ll1_hashmap_node(hm->nodes[i]);
+
+  free(hm->nodes);
+  free(hm);
+}
+
+void free_ll1_hashmap_node(ll1_hashmap_node *n) {
+  if (n == NULL)
+    return;
+  free_ll1_hashmap_node(n->next);
+  free_rhs_hashmap(n->data);
+  free(n);
+}
+
+void free_rhs_hashmap(rhs_hashmap *hm) {
+  for (int i = 0; i < hm->max; i++)
+    free_rhs_hashmap_node(hm->nodes[i]);
+
+  free(hm->nodes);
+  free(hm);
+}
+
+void free_rhs_hashmap_node(rhs_hashmap_node *n) {
+  if (n == NULL)
+    return;
+  free_rhs_hashmap_node(n->next);
+  free(n);
 }
