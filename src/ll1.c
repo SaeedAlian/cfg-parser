@@ -108,6 +108,7 @@ int find_first(production_table *t, ff_table *fft, char var) {
   production_rhs *selected_rhs = p.first_rhs;
 
   if (curr_rhs == NULL || fft->firsts[index].var == '\0') {
+    free(f);
     free_production_rhs_stack(s);
     return UNDEFINED_PRODUCTION;
   }
@@ -129,12 +130,15 @@ int find_first(production_table *t, ff_table *fft, char var) {
     if (check_first_duplicate(f, l, fi) == DUPLICATED_FIRST_NOT_FOUND) {
       if (l == max) {
         max *= 2;
-        f = (first *)realloc(f, sizeof(first) * max);
+        first *temp = (first *)realloc(f, sizeof(first) * max);
 
-        if (f == NULL) {
+        if (temp == NULL) {
+          free(f);
           free_production_rhs_stack(s);
           return ERROR_ON_FIRST_CALC;
         }
+
+        f = temp;
       }
 
       f[l].c = fi;
@@ -180,6 +184,7 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
   follow *f = (follow *)malloc(sizeof(follow) * max);
 
   if (f == NULL) {
+    free_char_stack(matches);
     free_production_rhs_stack(s);
     return ERROR_ON_FOLLOW_CALC;
   }
@@ -190,11 +195,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
                       fl->follows_len != FOLLOW_LEN_NOT_CALCULATED;
 
   if ((*fft)->follows[index].var == '\0') {
+    free(f);
+    free_char_stack(matches);
     free_production_rhs_stack(s);
     return UNDEFINED_PRODUCTION;
   }
 
   if (is_calculated) {
+    free(f);
+    free_char_stack(matches);
+    free_production_rhs_stack(s);
     return FOLLOW_ALREADY_CALCULATED;
   }
 
@@ -223,6 +233,8 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
   if (production_rhs_stack_is_empty(s)) {
     fl->follows = f;
     fl->follows_len = l;
+
+    free_char_stack(matches);
     free_production_rhs_stack(s);
     return SUCCESS_ON_FOLLOW_CALC;
   }
@@ -245,6 +257,9 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
             (*fft)->firsts[*curr_char - PRODS_INDEX_SHIFT];
 
         if (curr_char_firsts.firsts == NULL || curr_char_firsts.var == '\0') {
+          free(f);
+          free_char_stack(matches);
+          free_production_rhs_stack(s);
           return ERROR_ON_FOLLOW_CALC;
         }
 
@@ -264,7 +279,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
 
           if (l == max) {
             max *= 2;
-            f = (follow *)realloc(f, sizeof(follow) * max);
+            follow *temp = (follow *)realloc(f, sizeof(follow) * max);
+
+            if (temp == NULL) {
+              free(f);
+              free_char_stack(matches);
+              free_production_rhs_stack(s);
+              return ERROR_ON_FOLLOW_CALC;
+            }
+
+            f = temp;
           }
 
           f[l].c = fi.c;
@@ -284,7 +308,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
             DUPLICATED_FOLLOW_NOT_FOUND) {
           if (l == max) {
             max *= 2;
-            f = (follow *)realloc(f, sizeof(follow) * max);
+            follow *temp = (follow *)realloc(f, sizeof(follow) * max);
+
+            if (temp == NULL) {
+              free(f);
+              free_char_stack(matches);
+              free_production_rhs_stack(s);
+              return ERROR_ON_FOLLOW_CALC;
+            }
+
+            f = temp;
           }
 
           f[l].c = *curr_char;
@@ -309,6 +342,9 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
           if (lhs_follows_is_calculating) {
             fl->follows = NULL;
             fl->follows_len = FOLLOW_LEN_NOT_CALCULATED;
+
+            free(f);
+            free_char_stack(matches);
             free_production_rhs_stack(s);
             return GRAMMAR_IS_NOT_LL1;
           } else if (lhs_follows_is_calculated) {
@@ -322,7 +358,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
 
               if (l == max) {
                 max *= 2;
-                f = (follow *)realloc(f, sizeof(follow) * max);
+                follow *temp = (follow *)realloc(f, sizeof(follow) * max);
+
+                if (temp == NULL) {
+                  free(f);
+                  free_char_stack(matches);
+                  free_production_rhs_stack(s);
+                  return ERROR_ON_FOLLOW_CALC;
+                }
+
+                f = temp;
               }
 
               f[l].c = fo.c;
@@ -331,8 +376,12 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
           } else {
             int res = find_follow(t, fft, top_lhs, start_var);
 
-            if (res != SUCCESS_ON_FOLLOW_CALC)
+            if (res != SUCCESS_ON_FOLLOW_CALC) {
+              free(f);
+              free_char_stack(matches);
+              free_production_rhs_stack(s);
               return res;
+            }
 
             var_follows updated_top_lhs_follows =
                 (*fft)->follows[top_lhs - PRODS_INDEX_SHIFT];
@@ -347,7 +396,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
 
               if (l == max) {
                 max *= 2;
-                f = (follow *)realloc(f, sizeof(follow) * max);
+                follow *temp = (follow *)realloc(f, sizeof(follow) * max);
+
+                if (temp == NULL) {
+                  free(f);
+                  free_char_stack(matches);
+                  free_production_rhs_stack(s);
+                  return ERROR_ON_FOLLOW_CALC;
+                }
+
+                f = temp;
               }
 
               f[l].c = fo.c;
@@ -360,7 +418,16 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
       if (check_follow_duplicate(f, l, *next) == DUPLICATED_FOLLOW_NOT_FOUND) {
         if (l == max) {
           max *= 2;
-          f = (follow *)realloc(f, sizeof(follow) * max);
+          follow *temp = (follow *)realloc(f, sizeof(follow) * max);
+
+          if (temp == NULL) {
+            free(f);
+            free_char_stack(matches);
+            free_production_rhs_stack(s);
+            return ERROR_ON_FOLLOW_CALC;
+          }
+
+          f = temp;
         }
 
         f[l].c = *next;
@@ -371,6 +438,7 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
 
   fl->follows = f;
   fl->follows_len = l;
+  free_char_stack(matches);
   free_production_rhs_stack(s);
   return SUCCESS_ON_FOLLOW_CALC;
 }
