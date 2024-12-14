@@ -457,10 +457,11 @@ void print_ff_table(ff_table *t) {
   }
 }
 
+
 void free_ff_table(ff_table *t) {
   for (int i = 0; i < MAX_PRODS; i++) {
-    first fr = t->firsts[i];
-    follow fl = t->follows[i];
+    var_firsts fr = t->firsts[i];
+    var_follows fl = t->follows[i];
 
     if (fr.var != '\0' && fr.firsts != NULL) {
       free(fr.firsts);
@@ -475,3 +476,4 @@ void free_ff_table(ff_table *t) {
   free(t->follows);
   free(t);
 }
+
