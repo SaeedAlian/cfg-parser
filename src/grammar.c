@@ -282,6 +282,18 @@ int production_rhs_stack_is_empty(production_rhs_stack *s) {
   return s->top == -1;
 }
 
+int production_rhs_stack_increase(production_rhs_stack *s) {
+  s->max *= 2;
+  production_rhs **temp =
+      (production_rhs **)realloc(s->data, sizeof(production_rhs *) * s->max);
+
+  if (temp == NULL)
+    return -1;
+
+  s->data = temp;
+  return 0;
+}
+
 production_rhs *production_rhs_stack_top(production_rhs_stack *s) {
   return s->data[s->top];
 }
@@ -289,8 +301,11 @@ production_rhs *production_rhs_stack_top(production_rhs_stack *s) {
 int production_rhs_stack_push(production_rhs_stack *s, production_rhs *rhs) {
   int new_top = ++s->top;
 
-  if (new_top > s->max - 1)
-    return -1;
+  if (new_top > s->max - 1) {
+    int res = production_rhs_stack_increase(s);
+    if (res != 0)
+      return res;
+  }
 
   s->data[new_top] = rhs;
 
@@ -333,25 +348,39 @@ void free_char_stack(char_stack *s) {
 int char_stack_is_full(char_stack *s) { return s->top == s->max - 1; }
 int char_stack_is_empty(char_stack *s) { return s->top == -1; }
 
-char *char_stack_top(char_stack *s) { return s->data[s->top]; }
+int char_stack_increase(char_stack *s) {
+  s->max *= 2;
+  char **temp = (char **)realloc(s->data, sizeof(char *) * s->max);
 
-int char_stack_push(char_stack *s, char *state) {
-  int new_top = ++s->top;
-
-  if (new_top > s->max - 1)
+  if (temp == NULL)
     return -1;
 
-  s->data[new_top] = state;
+  s->data = temp;
+  return 0;
+}
+
+char *char_stack_top(char_stack *s) { return s->data[s->top]; }
+
+int char_stack_push(char_stack *s, char *c) {
+  int new_top = ++s->top;
+
+  if (new_top > s->max - 1) {
+    int res = char_stack_increase(s);
+    if (res != 0)
+      return res;
+  }
+
+  s->data[new_top] = c;
 
   return 0;
 }
 
-int char_stack_pop(char_stack *s, char **state) {
+int char_stack_pop(char_stack *s, char **c) {
   if (s->top < 0)
     return -1;
 
-  if (state != NULL) {
-    (*state) = s->data[s->top];
+  if (c != NULL) {
+    (*c) = s->data[s->top];
   }
 
   s->top--;
