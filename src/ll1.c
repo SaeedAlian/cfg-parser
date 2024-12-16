@@ -1,5 +1,148 @@
 #include "../include/ll1.h"
 
+int create_parse_tree_with_string(ll1_table *table,
+                                  ll1_parse_tree **output_tree, char start_var,
+                                  const char *str, int str_len) {
+  if (str_len == 0 || str == NULL || table == NULL)
+    return STRING_PARSE_ERROR;
+
+  char_stack *char_s = new_char_stack(table->terminals_len * 2);
+
+  if (char_s == NULL)
+    return STRING_PARSE_ERROR;
+
+  ll1_parse_node_stack *node_s = new_ll1_parse_node_stack(char_s->max);
+  if (node_s == NULL) {
+    free_char_stack(char_s);
+    return STRING_PARSE_ERROR;
+  }
+
+  ll1_parse_tree *tree = new_ll1_parse_tree(start_var, char_s->max);
+  if (tree == NULL) {
+    free_char_stack(char_s);
+    free_ll1_parse_node_stack(node_s);
+    return STRING_PARSE_ERROR;
+  }
+
+  int i = 0;
+  char *curr_char;
+  ll1_parse_node *curr_node;
+  char *string = (char *)str;
+
+  if (char_stack_push(char_s, &start_var) != 0) {
+    free_char_stack(char_s);
+    free_ll1_parse_node_stack(node_s);
+    free_ll1_parse_tree(tree);
+    return STRING_PARSE_ERROR;
+  }
+  if (ll1_parse_node_stack_push(node_s, tree->root) != 0) {
+    free_char_stack(char_s);
+    free_ll1_parse_node_stack(node_s);
+    free_ll1_parse_tree(tree);
+    return STRING_PARSE_ERROR;
+  }
+
+  while (!ll1_parse_node_stack_is_empty(node_s) &&
+         !char_stack_is_empty(char_s) && i < str_len) {
+    if (char_stack_pop(char_s, &curr_char) != 0) {
+      free_char_stack(char_s);
+      free_ll1_parse_node_stack(node_s);
+      free_ll1_parse_tree(tree);
+      return STRING_PARSE_ERROR;
+    }
+    if (ll1_parse_node_stack_pop(node_s, &curr_node) != 0) {
+      free_char_stack(char_s);
+      free_ll1_parse_node_stack(node_s);
+      free_ll1_parse_tree(tree);
+      return STRING_PARSE_ERROR;
+    }
+
+    if (*curr_char == string[i]) {
+      i++;
+      continue;
+    }
+
+    if (*curr_char != curr_node->c) {
+      free_char_stack(char_s);
+      free_ll1_parse_node_stack(node_s);
+      free_ll1_parse_tree(tree);
+      return STRING_PARSE_ERROR;
+    }
+
+    rhs_hashmap *rhs_hm;
+    if (search_ll1_hashmap(table->table, *curr_char, &rhs_hm) ==
+        HASHMAP_KEY_FOUND_SUCCESS) {
+      production_rhs *rhs;
+
+      if (search_rhs_hashmap(rhs_hm, string[i], &rhs) ==
+          HASHMAP_KEY_FOUND_SUCCESS) {
+        int rhs_len = strlen(rhs->rhs);
+
+        if (rhs->rhs[0] == EPSILON) {
+          if (ll1_parse_tree_add_child(tree, curr_node, EPSILON,
+                                       tree->root->max_children) !=
+              PARSE_TREE_ADD_NODE_SUCCESS) {
+            free_char_stack(char_s);
+            free_ll1_parse_node_stack(node_s);
+            free_ll1_parse_tree(tree);
+            return STRING_PARSE_ERROR;
+          }
+          continue;
+        }
+
+        for (int i = rhs_len - 1; i >= 0; i--) {
+          char *c = &rhs->rhs[i];
+          if (char_stack_push(char_s, c) != 0) {
+            free_char_stack(char_s);
+            free_ll1_parse_node_stack(node_s);
+            free_ll1_parse_tree(tree);
+            return STRING_PARSE_ERROR;
+          }
+          if (ll1_parse_tree_add_child(tree, curr_node, *c,
+                                       tree->root->max_children) !=
+              PARSE_TREE_ADD_NODE_SUCCESS) {
+            free_char_stack(char_s);
+            free_ll1_parse_node_stack(node_s);
+            free_ll1_parse_tree(tree);
+            return STRING_PARSE_ERROR;
+          }
+        }
+
+        for (int i = 0; i < curr_node->children_len; i++) {
+          if (ll1_parse_node_stack_push(node_s, curr_node->children[i]) != 0) {
+            free_char_stack(char_s);
+            free_ll1_parse_node_stack(node_s);
+            free_ll1_parse_tree(tree);
+            return STRING_PARSE_ERROR;
+          }
+        }
+      } else {
+        free_char_stack(char_s);
+        free_ll1_parse_node_stack(node_s);
+        free_ll1_parse_tree(tree);
+        return STRING_PARSE_ERROR;
+      }
+    } else {
+      free_char_stack(char_s);
+      free_ll1_parse_node_stack(node_s);
+      free_ll1_parse_tree(tree);
+      return STRING_PARSE_ERROR;
+    }
+  }
+
+  if (i < str_len - 1) {
+    free_char_stack(char_s);
+    free_ll1_parse_node_stack(node_s);
+    free_ll1_parse_tree(tree);
+    return STRING_PARSE_ERROR;
+  }
+
+  *output_tree = tree;
+  free_char_stack(char_s);
+  free_ll1_parse_node_stack(node_s);
+  return STRING_PARSE_SUCCESS;
+}
+
 ll1_table *new_ll1_table(grammar *g, ff_table *fft) {
   if (g == NULL || fft == NULL)
     return NULL;
@@ -592,6 +735,69 @@ int check_follow_duplicate(follow *f, int f_len, char c) {
   return DUPLICATED_FOLLOW_NOT_FOUND;
 }
 
+ll1_parse_node *new_ll1_parse_node(ll1_parse_node *parent, char val,
+                                   int max_children) {
+  ll1_parse_node *n = (ll1_parse_node *)malloc(sizeof(ll1_parse_node));
+
+  if (n == NULL)
+    return NULL;
+
+  n->parent = parent;
+  n->c = val;
+  n->max_children = max_children;
+  n->children_len = 0;
+  n->children =
+      (ll1_parse_node **)malloc(sizeof(ll1_parse_node *) * n->max_children);
+
+  if (n->children == NULL) {
+    free(n);
+    return NULL;
+  }
+
+  return n;
+}
+
+ll1_parse_tree *new_ll1_parse_tree(char start_var, int max_children) {
+  ll1_parse_node *root = new_ll1_parse_node(NULL, start_var, max_children);
+  if (root == NULL)
+    return NULL;
+
+  ll1_parse_tree *tree = (ll1_parse_tree *)malloc(sizeof(ll1_parse_tree));
+  if (tree == NULL) {
+    free_ll1_parse_node(root);
+    return NULL;
+  }
+
+  tree->root = root;
+  tree->nodes = 1;
+
+  return tree;
+}
+
+int ll1_parse_tree_add_child(ll1_parse_tree *t, ll1_parse_node *node, char val,
+                             int max_children) {
+  ll1_parse_node *new_node = new_ll1_parse_node(node, val, max_children);
+
+  if (new_node == NULL)
+    return PARSE_TREE_ADD_NODE_ERROR;
+
+  if (node->children_len >= max_children - 1) {
+    node->max_children *= 2;
+    ll1_parse_node **temp = (ll1_parse_node **)realloc(
+        node->children, sizeof(ll1_parse_node *) * node->max_children);
+
+    if (temp == NULL)
+      return PARSE_TREE_ADD_NODE_ERROR;
+
+    node->children = temp;
+  }
+
+  node->children[node->children_len++] = new_node;
+  t->nodes++;
+
+  return PARSE_TREE_ADD_NODE_SUCCESS;
+}
+
 ll1_hashmap_node *new_ll1_hashmap_node(char k, rhs_hashmap *v) {
   ll1_hashmap_node *n = (ll1_hashmap_node *)malloc(sizeof(ll1_hashmap_node));
 
@@ -742,6 +948,41 @@ int search_rhs_hashmap(rhs_hashmap *hm, char k, production_rhs **output) {
 
 int ll1_hashmap_hash_func(ll1_hashmap *hm, char k) { return k % hm->max; }
 int rhs_hashmap_hash_func(rhs_hashmap *hm, char k) { return k % hm->max; }
+
+void print_ll1_parse_tree(ll1_parse_tree *t) {
+  if (t->root == NULL || t->nodes < 1) {
+    printf("Empty Tree\n");
+    return;
+  }
+
+  print_ll1_parse_node(t->root, 0);
+}
+
+void print_ll1_parse_node(ll1_parse_node *n, int level) {
+  int padding_factor = 4;
+
+  for (int i = 0; i < level; i++) {
+    for (int j = 0; j < level; j++) {
+      if (i == j)
+        printf("|-");
+    }
+  }
+
+  if (n->c == EPSILON) {
+    printf("eps");
+  } else {
+    printf("%c", n->c);
+  }
+
+  if (n->children_len == 0) {
+    printf(" --- ");
+  }
+
+  printf("\n");
+
+  for (int i = 0; i < n->children_len; i++)
+    print_ll1_parse_node(n->children[i], level + 1);
+}
 
 void print_ll1_table(ll1_table *t) {
   printf("LL1 Table:\n\n");
@@ -1011,6 +1252,23 @@ void print_rhs_hashmap(rhs_hashmap *hm) {
   }
 }
 
+void free_ll1_parse_node(ll1_parse_node *n) {
+  if (n == NULL)
+    return;
+
+  for (int i = 0; i < n->children_len; i++) {
+    free_ll1_parse_node(n->children[i]);
+  }
+
+  free(n->children);
+  free(n);
+}
+
+void free_ll1_parse_tree(ll1_parse_tree *t) {
+  free_ll1_parse_node(t->root);
+  free(t);
+}
+
 void free_ll1_table(ll1_table *t) {
   free_ll1_hashmap(t->table);
   free(t->terminals);
@@ -1066,4 +1324,183 @@ void free_rhs_hashmap_node(rhs_hashmap_node *n) {
     return;
   free_rhs_hashmap_node(n->next);
   free(n);
+}
+
+ll1_parse_node_queue *new_ll1_parse_node_queue(int max) {
+  ll1_parse_node_queue *q =
+      (ll1_parse_node_queue *)malloc(sizeof(ll1_parse_node_queue));
+
+  if (q == NULL)
+    return NULL;
+
+  q->data = (ll1_parse_node **)malloc(sizeof(ll1_parse_node *) * max);
+  q->front = -1;
+  q->rear = -1;
+  q->max = max;
+
+  if (q->data == NULL) {
+    if (q != NULL)
+      free(q);
+
+    return NULL;
+  }
+
+  return q;
+}
+
+void free_ll1_parse_node_queue(ll1_parse_node_queue *q) {
+  free(q->data);
+  free(q);
+}
+
+int ll1_parse_node_queue_is_full(ll1_parse_node_queue *q) {
+  return (q->rear + 1) % q->max == q->front;
+}
+
+int ll1_parse_node_queue_is_empty(ll1_parse_node_queue *q) {
+  return q->front == -1;
+}
+
+int ll1_parse_node_queue_increase(ll1_parse_node_queue *q) {
+  q->max *= 2;
+  ll1_parse_node **temp =
+      (ll1_parse_node **)realloc(q->data, sizeof(ll1_parse_node *) * q->max);
+
+  if (temp == NULL)
+    return -1;
+
+  int overflow = q->front - q->rear;
+
+  if (overflow > 0) {
+    int end = q->max / 2;
+    for (int i = 0; i <= overflow; i++) {
+      q->data[end++] = q->data[i];
+    }
+    q->rear = end - 1;
+  }
+
+  q->data = temp;
+  return 0;
+}
+
+ll1_parse_node *ll1_parse_node_queue_front(ll1_parse_node_queue *q) {
+  return q->data[q->front];
+}
+
+int ll1_parse_node_queue_enqueue(ll1_parse_node_queue *q,
+                                 ll1_parse_node *state) {
+  if ((q->rear + 1) % q->max == q->front) {
+    int res = ll1_parse_node_queue_increase(q);
+    if (res != 0)
+      return res;
+  }
+
+  int new_rear = (q->rear + 1) % q->max;
+
+  if (q->front == -1)
+    q->front = (q->front + 1) % q->max;
+
+  q->data[new_rear] = state;
+  q->rear = new_rear;
+
+  return 0;
+}
+
+int ll1_parse_node_queue_dequeue(ll1_parse_node_queue *q,
+                                 ll1_parse_node **state) {
+  if (q->front == -1)
+    return -1;
+
+  if (state != NULL)
+    (*state) = q->data[q->front];
+
+  if (q->front == q->rear) {
+    q->front = q->rear = -1;
+  } else {
+    q->front = (q->front + 1) % q->max;
+  }
+
+  return 0;
+}
+
+int ll1_parse_node_queue_length(ll1_parse_node_queue *q) {
+  if (q->front == -1 && q->rear == -1)
+    return 0;
+
+  int len = q->rear - q->front + 1;
+
+  if (len < 0)
+    return -len;
+  return len;
+}
+
+ll1_parse_node_stack *new_ll1_parse_node_stack(int max) {
+  ll1_parse_node_stack *s =
+      (ll1_parse_node_stack *)malloc(sizeof(ll1_parse_node_stack));
+  s->data = (ll1_parse_node **)malloc(sizeof(ll1_parse_node *) * max);
+  s->top = -1;
+  s->max = max;
+
+  if (s->data == NULL) {
+    if (s != NULL)
+      free(s);
+
+    return NULL;
+  }
+
+  return s;
+}
+
+void free_ll1_parse_node_stack(ll1_parse_node_stack *s) {
+  free(s->data);
+  free(s);
+}
+
+int ll1_parse_node_stack_is_full(ll1_parse_node_stack *s) {
+  return s->top == s->max - 1;
+}
+int ll1_parse_node_stack_is_empty(ll1_parse_node_stack *s) {
+  return s->top == -1;
+}
+
+int ll1_parse_node_stack_increase(ll1_parse_node_stack *s) {
+  s->max *= 2;
+  ll1_parse_node **temp =
+      (ll1_parse_node **)realloc(s->data, sizeof(ll1_parse_node *) * s->max);
+
+  if (temp == NULL)
+    return -1;
+
+  s->data = temp;
+  return 0;
+}
+
+ll1_parse_node *ll1_parse_node_stack_top(ll1_parse_node_stack *s) {
+  return s->data[s->top];
+}
+
+int ll1_parse_node_stack_push(ll1_parse_node_stack *s, ll1_parse_node *c) {
+  int new_top = ++s->top;
+
+  if (new_top > s->max - 1) {
+    int res = ll1_parse_node_stack_increase(s);
+    if (res != 0)
+      return res;
+  }
+
+  s->data[new_top] = c;
+
+  return 0;
+}
+
+int ll1_parse_node_stack_pop(ll1_parse_node_stack *s, ll1_parse_node **c) {
+  if (s->top < 0)
+    return -1;
+
+  if (c != NULL) {
+    (*c) = s->data[s->top];
+  }
+
+  s->top--;
+  return 0;
 }

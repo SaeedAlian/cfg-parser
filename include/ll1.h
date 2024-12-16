@@ -28,6 +28,10 @@
 #define DUPLICATED_FIRST_NOT_FOUND 0
 #define DUPLICATED_FOLLOW_FOUND 1
 #define DUPLICATED_FOLLOW_NOT_FOUND 0
+#define PARSE_TREE_ADD_NODE_SUCCESS 1
+#define PARSE_TREE_ADD_NODE_ERROR -1
+#define STRING_PARSE_SUCCESS 1
+#define STRING_PARSE_ERROR -1
 
 typedef struct first {
   char c;
@@ -85,6 +89,36 @@ typedef struct ll1_table {
   ll1_hashmap *table;
 } ll1_table;
 
+typedef struct ll1_parse_node {
+  char c;
+  int max_children;
+  int children_len;
+  struct ll1_parse_node *parent;
+  struct ll1_parse_node **children;
+} ll1_parse_node;
+
+typedef struct ll1_parse_node_queue {
+  int rear;
+  int front;
+  int max;
+  ll1_parse_node **data;
+} ll1_parse_node_queue;
+
+typedef struct ll1_parse_node_stack {
+  int top;
+  int max;
+  ll1_parse_node **data;
+} ll1_parse_node_stack;
+
+typedef struct ll1_parse_tree {
+  int nodes;
+  ll1_parse_node *root;
+} ll1_parse_tree;
+
+void free_ll1_parse_node_stack(ll1_parse_node_stack *s);
+void free_ll1_parse_node_queue(ll1_parse_node_queue *q);
+void free_ll1_parse_node(ll1_parse_node *n);
+void free_ll1_parse_tree(ll1_parse_tree *t);
 void free_rhs_hashmap_node(rhs_hashmap_node *n);
 void free_rhs_hashmap(rhs_hashmap *hm);
 void free_ll1_hashmap_node(ll1_hashmap_node *n);
@@ -108,6 +142,31 @@ int search_ll1_hashmap(ll1_hashmap *hm, char k, rhs_hashmap **output);
 void print_ll1_hashmap_node(ll1_hashmap_node *n);
 void print_ll1_hashmap(ll1_hashmap *hm);
 
+ll1_parse_node_queue *new_ll1_parse_node_queue(int max);
+int ll1_parse_node_queue_is_full(ll1_parse_node_queue *q);
+int ll1_parse_node_queue_is_empty(ll1_parse_node_queue *q);
+int ll1_parse_node_queue_increase(ll1_parse_node_queue *q);
+ll1_parse_node *ll1_parse_node_queue_front(ll1_parse_node_queue *q);
+int ll1_parse_node_queue_enqueue(ll1_parse_node_queue *q, ll1_parse_node *node);
+int ll1_parse_node_queue_dequeue(ll1_parse_node_queue *q,
+                                 ll1_parse_node **node);
+int ll1_parse_node_queue_length(ll1_parse_node_queue *q);
+
+ll1_parse_node_stack *new_ll1_parse_node_stack(int max);
+int ll1_parse_node_stack_is_full(ll1_parse_node_stack *s);
+int ll1_parse_node_stack_is_empty(ll1_parse_node_stack *s);
+int ll1_parse_node_stack_increase(ll1_parse_node_stack *s);
+ll1_parse_node *ll1_parse_node_stack_top(ll1_parse_node_stack *s);
+int ll1_parse_node_stack_push(ll1_parse_node_stack *s, ll1_parse_node *c);
+int ll1_parse_node_stack_pop(ll1_parse_node_stack *s, ll1_parse_node **c);
+
+ll1_parse_node *new_ll1_parse_node(ll1_parse_node *parent, char val,
+                                   int max_children);
+int ll1_parse_tree_add_child(ll1_parse_tree *t, ll1_parse_node *node, char val,
+                             int max_children);
+
+ll1_parse_tree *new_ll1_parse_tree(char start_var, int max_children);
+
 int check_first_duplicate(first *f, int f_len, char c);
 int check_follow_duplicate(follow *f, int f_len, char c);
 
@@ -119,6 +178,12 @@ int calculate_follows(grammar *g, ff_table *fft);
 
 ll1_table *new_ll1_table(grammar *g, ff_table *fft);
 
+int create_parse_tree_with_string(ll1_table *table,
+                                  ll1_parse_tree **output_tree, char start_var,
+                                  const char *str, int str_len);
+
+void print_ll1_parse_node(ll1_parse_node *n, int level);
+void print_ll1_parse_tree(ll1_parse_tree *t);
 void print_ff_table(ff_table *t);
 void print_ll1_table(ll1_table *t);
 
