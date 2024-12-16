@@ -220,7 +220,11 @@ int find_first(production_table *t, ff_table *fft, char var) {
 
     if (fi >= MIN_PROD_CHAR && fi <= MAX_PROD_CHAR) {
       if (curr_rhs->next) {
-        production_rhs_stack_push(s, curr_rhs->next);
+        if (production_rhs_stack_push(s, curr_rhs->next) != 0) {
+          free(f);
+          free_production_rhs_stack(s);
+          return UNDEFINED_PRODUCTION;
+        }
       }
 
       int nindex = fi - PRODS_INDEX_SHIFT;
@@ -252,7 +256,11 @@ int find_first(production_table *t, ff_table *fft, char var) {
       if (production_rhs_stack_is_empty(s)) {
         curr_rhs = NULL;
       } else {
-        production_rhs_stack_pop(s, &curr_rhs);
+        if (production_rhs_stack_pop(s, &curr_rhs) != 0) {
+          free(f);
+          free_production_rhs_stack(s);
+          return UNDEFINED_PRODUCTION;
+        }
       }
     } else {
       curr_rhs = curr_rhs->next;
@@ -324,8 +332,18 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
     while (curr != NULL) {
       char *match = strchr(curr->rhs, var);
       if (match != NULL) {
-        production_rhs_stack_push(s, curr);
-        char_stack_push(matches, match);
+        if (production_rhs_stack_push(s, curr) != 0) {
+          free(f);
+          free_char_stack(matches);
+          free_production_rhs_stack(s);
+          return ERROR_ON_FOLLOW_CALC;
+        }
+        if (char_stack_push(matches, match) != 0) {
+          free(f);
+          free_char_stack(matches);
+          free_production_rhs_stack(s);
+          return ERROR_ON_FOLLOW_CALC;
+        }
       }
 
       curr = curr->next;
@@ -345,8 +363,19 @@ int find_follow(production_table *t, ff_table **fft, char var, char start_var) {
   char *match;
 
   while (!char_stack_is_empty(matches) && !production_rhs_stack_is_empty(s)) {
-    production_rhs_stack_pop(s, &top);
-    char_stack_pop(matches, &match);
+    if (production_rhs_stack_pop(s, &top) != 0) {
+      free(f);
+      free_char_stack(matches);
+      free_production_rhs_stack(s);
+      return ERROR_ON_FOLLOW_CALC;
+    }
+
+    if (char_stack_pop(matches, &match) != 0) {
+      free(f);
+      free_char_stack(matches);
+      free_production_rhs_stack(s);
+      return ERROR_ON_FOLLOW_CALC;
+    }
 
     char *next = (match + sizeof(char));
 
